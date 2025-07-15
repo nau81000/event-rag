@@ -1,0 +1,8 @@
+.DS_Store
+.pytest_cache
+.virtual_documents
+tests/__pycache__
+utils/__pycache__
+venv
+inputs
+vector_db
