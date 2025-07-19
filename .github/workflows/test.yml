@@ -16,7 +16,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    env:
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
