@@ -4,7 +4,7 @@ import streamlit as st
 import logging
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
-from utils.config import MISTRAL_API_KEY, MODEL_NAME, SEARCH_K, APP_TITLE, DEPT_NAME
+from utils.config import MISTRAL_API_KEY, MODEL_NAME, SEARCH_K, APP_TITLE, REG_NAME
 from utils.vector_store import VectorStoreManager
 
 # --- Configuration du Logging ---
@@ -55,13 +55,13 @@ vector_store_manager = get_vector_store_manager()
 
 # --- Prompt Système pour RAG ---
 # Adaptez ce prompt selon vos besoins
-SYSTEM_PROMPT = f"""Assistant virtuel pour les évènements dans le {DEPT_NAME}.
+SYSTEM_PROMPT = f"""Assistant virtuel pour les évènements en {REG_NAME}.
 Ta mission est de répondre aux questions des citoyens de manière précise, factuelle et polie, en te basant **exclusivement** sur les informations fournies dans le CONTEXTE ci-dessous.
 
 Instructions importantes:
 1.  **Base ta réponse UNIQUEMENT sur le CONTEXTE.** N'invente aucune information.
 2.  Si le CONTEXTE contient l'information pour répondre à la QUESTION, synthétise-la clairement.
-3.  Si le CONTEXTE ne contient PAS d'information pertinente pour répondre à la QUESTION, réponds poliment que tu n'as pas trouvé l'information dans la base de connaissances actuelle et suggère de contacter directement les services du département. Ne cherche pas la réponse ailleurs.
+3.  Si le CONTEXTE ne contient PAS d'information pertinente pour répondre à la QUESTION, réponds poliment que tu n'as pas trouvé l'information dans la base de connaissances actuelle et suggère de contacter directement les services de la région. Ne cherche pas la réponse ailleurs.
 4.  Ne réponds pas à des questions hors sujet (non liées à la mairie ou aux informations du contexte).
 5.  Si possible, mentionne la source (par exemple, le nom du fichier) si elle est indiquée dans le contexte.
 6.  Garde tes réponses concises et faciles à comprendre.
@@ -80,7 +80,7 @@ RÉPONSE DE L'ASSISTANT MAIRIE:"""
 # --- Initialisation de l'historique de conversation ---
 if "messages" not in st.session_state:
     # Message d'accueil initial
-    st.session_state.messages = [{"role": "assistant", "content": f"Bonjour, je suis l'assistant virtuel du département du {DEPT_NAME}. Comment puis-je vous aider concernant nos services (basé sur ma base de connaissances) ?"}]
+    st.session_state.messages = [{"role": "assistant", "content": f"Bonjour, je suis l'assistant virtuel de la région d'{REG_NAME}. Comment puis-je vous aider concernant nos services (basé sur ma base de connaissances) ?"}]
 
 # --- Fonctions ---
 
@@ -99,7 +99,7 @@ def generer_reponse(prompt_messages: list[ChatMessage]) -> str:
         response = client.chat(
             model=model,
             messages=prompt_messages,
-            temperature=0.1, # Température basse pour des réponses factuelles basées sur le contexte
+            temperature=0.9, # Température basse pour des réponses factuelles basées sur le contexte
             # top_p=0.9,
         )
         if response.choices and len(response.choices) > 0:
@@ -115,7 +115,7 @@ def generer_reponse(prompt_messages: list[ChatMessage]) -> str:
 
 # --- Interface Utilisateur Streamlit ---
 st.title(APP_TITLE)
-st.caption(f"Assistant virtuel pour les évènements dans le département du {DEPT_NAME} | Modèle: {model}")
+st.caption(f"Assistant virtuel pour les évènements dans la région d'{REG_NAME} | Modèle: {model}")
 
 # Affichage des messages de l'historique (pour l'UI)
 for message in st.session_state.messages:
@@ -123,7 +123,7 @@ for message in st.session_state.messages:
         st.write(message["content"])
 
 # Zone de saisie utilisateur
-if prompt := st.chat_input(f"Posez votre question sur les évènements du {DEPT_NAME}..."):
+if prompt := st.chat_input(f"Posez votre question sur les évènements en {REG_NAME}..."):
     # 1. Ajouter et afficher le message de l'utilisateur
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -186,4 +186,4 @@ if prompt := st.chat_input(f"Posez votre question sur les évènements du {DEPT_
 
 # Petit pied de page optionnel
 st.markdown("---")
-st.caption("Propulsé par Mistral AI & Faiss | Département du " + DEPT_NAME)
+st.caption("Propulsé par Mistral AI & Faiss | Région d' " + REG_NAME)

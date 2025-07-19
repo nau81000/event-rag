@@ -4,5 +4,3 @@
 tests/__pycache__
 utils/__pycache__
 venv
-inputs
-vector_db

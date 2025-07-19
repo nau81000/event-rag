@@ -12,8 +12,9 @@ from utils.vector_store import VectorStoreManager
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def get_events(input_directory: str, input_filename: str, overwrite: bool):
-    """ Récupère les évènements depuis juillet 2024 dans le Tarn
+    """ Récupère les évènements depuis juillet 2024 en Occitanie
     """
+    logging.info("--- Récupération des évènements ---")
     input_path = os.path.join(input_directory, input_filename)
     if os.path.exists(input_path) and not overwrite:
         # On n'écrase pas le fichier source
@@ -21,11 +22,17 @@ def get_events(input_directory: str, input_filename: str, overwrite: bool):
     records = []
     limit = 100
     offset = 0
+    uids = []
     while True:
-        url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?select=*&where=firstdate_begin%20%3E%3D%20%222024-07-01%22&limit={limit}&offset={offset}&refine=location_department%3A%22Tarn%22"
+        url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?select=*&where=firstdate_begin%20%3E%3D%20%222024-07-01%22&limit={limit}&offset={offset}&order_by=location_city%2C%20firstdate_begin&refine=location_region%3A%22Occitanie%22"
         resp = requests.get(url, params={}).json()
         results = resp.get('results', [])
-        records.extend(results)
+        for event in results:
+            uid = event.get("uid")
+            if uid not in uids:
+                records.append(event)
+                # On garde trace des uid déjà vus pour ne les avoir qu'une fois
+                uids.append(uid)
         if len(results) < limit:
             break
         offset += 1
@@ -34,6 +41,7 @@ def get_events(input_directory: str, input_filename: str, overwrite: bool):
     # Sauvegarde des évènements dans un fichier JSON
     with open(input_path, "w", encoding="utf-8") as f:
         json.dump(records, f, ensure_ascii=False, indent=2)
+    logging.info(f"{len(records)} évènements récupérés")
 
 def run_indexing(input_directory: str, input_filename: str):
     """ Exécute le processus complet d'indexation.

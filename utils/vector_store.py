@@ -4,11 +4,15 @@ import pickle
 import faiss
 import numpy as np
 import logging
+import re
+import json
+from dateutil import parser
 from typing import List, Dict, Optional
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document # Utilisé pour le format attendu par le splitter
+from bs4 import BeautifulSoup
 
 from .config import (
     MISTRAL_API_KEY, EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE,
@@ -17,6 +21,82 @@ from .config import (
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def clean_html(text: str):
+    """ Supprime les balises HTML
+    """
+    return re.sub(r'\s+', ' ', BeautifulSoup(text or "", "html.parser").get_text().strip())
+
+def extract_date_parts_from_timings(timings_str: str):
+    """
+    Retourne les dates, mois et années au format filtrable
+    """
+    try:
+        timings = json.loads(timings_str)
+        dates = set()
+        months = set()
+        years = set()
+        for t in timings:
+            dt = parser.isoparse(t["begin"])
+            dates.add(dt.date().isoformat())              # ex: "2024-09-21"
+            months.add(f"{dt.year}-{dt.month:02d}")       # ex: "2024-09"
+            years.add(str(dt.year))                       # ex: "2024"
+        return sorted(dates), sorted(months), sorted(years)
+    except Exception as e:
+        print(f"Erreur d'extraction de date : {e}")
+        return [], [], []
+
+def build_document(event: Dict[str, any]):
+    """ Construit un document à partir des paramètres d'un évènement 
+    """
+    textual_columns = ['title_fr', 'description_fr', 'longdescription_fr', 'location_description_fr']
+    text_values = []
+    for col in textual_columns:
+        value = event.get(col, '')
+        value = '' if value is None else value
+        text_values.append(value)
+    text = " ".join(text_values).strip()
+    #date_range = event.get("daterange_fr")
+    location_name = event.get("location_name")
+    ville = event.get("location_city")
+    address = event.get("location_address")
+    location_department = event.get("location_department")
+    title = event.get("title_fr", "")
+    desc = clean_html(text)
+    conditions = clean_html(event.get("conditions_fr", ""))
+    url = event.get("canonicalurl")
+    dates, months, years = extract_date_parts_from_timings(event["timings"])
+    #page_content = f"description:{title}\n{desc}\n{conditions}\nlieu:{location_name}\nadresse:{address} {ville} {location_department}\ndates:{dates} {months} {years}\nurl:{url}"
+    #page_content = f"""
+    #    {title} à {ville}, département {location_department}, en {months[0]}
+    #    Description: {desc}
+    #    Conditions : {conditions}
+    #    Dates : {', '.join(dates)}
+    #"""
+    #print(page_content)
+    page_content = f"""
+        Titre : {title},
+        Ville : {ville},
+        Département : {location_department},
+        Dates : {', '.join(dates)},
+        Description : {desc},
+        Conditions : {conditions}
+        """
+
+    return Document(
+        page_content=page_content,
+        metadata={
+            "uid": event.get("uid"),
+            "lieu": location_name,
+            "adresse": address,
+            "ville": str(ville).lower(),
+            "departement": location_department,
+            "dates": dates,
+            "mois": months,
+            "annees": years,
+            "url": url
+        }
+    )
+ 
 class VectorStoreManager:
     """Gère la création, le chargement et la recherche dans un index Faiss."""
 
@@ -53,25 +133,10 @@ class VectorStoreManager:
             add_start_index=True, # Ajoute la position de début du chunk dans le document original
         )
 
-        textual_columns = ['title_fr', 'description_fr', 'longdescription_fr', 'location_description_fr']
         all_chunks = []
         event_counter = 0
         for event in events:
-            values = []
-            for col in textual_columns:
-                value = event.get(col, '')
-                value = '' if value is None else value
-                values.append(value)
-            text = " ".join(values).strip()
-            langchain_doc = Document(page_content=text,
-                                     metadata={
-                                        "event_id": event.get("uid"),
-                                        "slug": event.get("slug"),
-                                        "ville": event.get("location_city"),
-                                        "region": event.get("location_region"),
-                                        "timings": event.get("timings"),
-                                        "tags": event.get("location_tags", "").split(";") if event.get("location_tags") else []
-                                    })
+            langchain_doc = build_document(event)
             chunks = text_splitter.split_documents([langchain_doc])
 
             # Enrichit chaque chunk avec des métadonnées supplémentaires
@@ -279,7 +344,6 @@ class VectorStoreManager:
 
             # Trier par score (similarité la plus élevée en premier)
             results.sort(key=lambda x: x["score"], reverse=True)
-
             # Limiter au nombre demandé (k) si nécessaire
             if len(results) > k:
                 results = results[:k]

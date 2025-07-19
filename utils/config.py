@@ -28,8 +28,8 @@ CHUNK_OVERLAP = 150                 # Chevauchement en *caractères*
 EMBEDDING_BATCH_SIZE = 32           # Taille des lots pour l'API d'embedding
 
 # --- Configuration de la Recherche ---
-SEARCH_K = 5                        # Nombre de documents à récupérer par défaut
+SEARCH_K = 20                        # Nombre de documents à récupérer par défaut
 
 # --- Configuration de l'Application ---
 APP_TITLE = "Assistant pour la recommandation d'évènements"
-DEPT_NAME = "Tarn"
+REG_NAME = "Occitanie"
