@@ -54,7 +54,7 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 ```
 .
 ├── chatbot.py              # Application Streamlit principale
-├── indexer.py              # Script pour indexer les documents
+├── indexer.py              # Script pour récupérer et indexer les documents
 ├── inputs/                 # Dossier pour les documents sources
 ├── vector_db/              # Dossier pour l'index FAISS et les chunks
 ├── utils/                  # Modules utilitaires
