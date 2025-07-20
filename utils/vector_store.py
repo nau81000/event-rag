@@ -65,14 +65,6 @@ def build_document(event: Dict[str, any]):
     conditions = clean_html(event.get("conditions_fr", ""))
     url = event.get("canonicalurl")
     dates, months, years = extract_date_parts_from_timings(event["timings"])
-    #page_content = f"description:{title}\n{desc}\n{conditions}\nlieu:{location_name}\nadresse:{address} {ville} {location_department}\ndates:{dates} {months} {years}\nurl:{url}"
-    #page_content = f"""
-    #    {title} à {ville}, département {location_department}, en {months[0]}
-    #    Description: {desc}
-    #    Conditions : {conditions}
-    #    Dates : {', '.join(dates)}
-    #"""
-    #print(page_content)
     page_content = f"""
         Titre : {title},
         Ville : {ville},
