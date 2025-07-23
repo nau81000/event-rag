@@ -71,9 +71,15 @@ Exécutez le script d'indexation pour récupérer, traiter les évènements et c
 ```bash
 python indexer.py
 ```
+options:
+
+**--overwrite-input** *pour écraser le fichier de données si présent*
+
+**--no-overwrite-input** *pour ne pas écraser le fichier de données si présent (défaut)*
+
 
 Ce script va :
-1. Charger les évènements depuis le site Openagenda`
+1. Charger les évènements depuis le site Openagenda
 2. Découper les évènements en chunks
 3. Générer des embeddings avec Mistral
 4. Créer un index FAISS pour la recherche sémantique
@@ -105,6 +111,8 @@ Gère l'index vectoriel FAISS et la recherche sémantique :
 ## Personnalisation
 
 Vous pouvez personnaliser l'application en modifiant les paramètres dans `utils/config.py` :
+- Chemin et nom du ficher de données
+- Chemin et noms des fichiers de l'index Faiss et les chunks
 - Modèles Mistral utilisés
 - Taille des chunks et chevauchement
 - Nombre de documents par défaut

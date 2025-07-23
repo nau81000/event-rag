@@ -1,4 +1,5 @@
-# utils/config.py
+""" Utilitaires
+"""
 import os
 from dotenv import load_dotenv
 
@@ -8,8 +9,8 @@ load_dotenv()
 # --- Clé API ---
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
-    print("⚠️ Attention: La clé API Mistral (MISTRAL_API_KEY) n'est pas définie dans le fichier .env")
-    # Vous pouvez choisir de lever une exception ici ou de continuer avec des fonctionnalités limitées
+    print("Attention: La clé API Mistral (MISTRAL_API_KEY) n'est pas définie dans le fichier .env")
+    # Vous pouvez choisir de lever une exception ou de continuer avec des fonctionnalités limitées
     # raise ValueError("Clé API Mistral manquante. Veuillez la définir dans le fichier .env")
 
 # --- Modèles Mistral ---

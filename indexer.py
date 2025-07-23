@@ -2,20 +2,20 @@
 """
 import argparse
 import logging
-import requests
 import json
 import os
 from pathlib import Path
+import requests
 from utils.config import INPUT_DIR, INPUT_FILENAME
 from utils.vector_store import VectorStoreManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def get_events(input_directory: str, input_filename: str, overwrite: bool):
+def get_events(overwrite: bool):
     """ Récupère les évènements depuis juillet 2024 en Occitanie
     """
     logging.info("--- Récupération des évènements ---")
-    input_path = os.path.join(input_directory, input_filename)
+    input_path = os.path.join(INPUT_DIR, INPUT_FILENAME)
     if os.path.exists(input_path) and not overwrite:
         # On n'écrase pas le fichier source
         return
@@ -23,9 +23,20 @@ def get_events(input_directory: str, input_filename: str, overwrite: bool):
     limit = 100
     offset = 0
     uids = []
+    base_url = (
+        "https://public.opendatasoft.com/api/explore/v2.1/catalog"
+        "/datasets/evenements-publics-openagenda/records"
+    )
     while True:
-        url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?select=*&where=firstdate_begin%20%3E%3D%20%222024-07-01%22&limit={limit}&offset={offset}&order_by=location_city%2C%20firstdate_begin&refine=location_region%3A%22Occitanie%22"
-        resp = requests.get(url, params={}).json()
+        params = {
+            "select": "*",
+            "where": 'firstdate_begin >= "2024-07-01"',
+            "limit": limit,
+            "offset": offset,
+            "order_by": "location_city, firstdate_begin",
+            "refine": 'location_region:"Occitanie"',
+        }
+        resp = requests.get(base_url, params=params, timeout=30).json()
         results = resp.get('results', [])
         for event in results:
             uid = event.get("uid")
@@ -37,20 +48,20 @@ def get_events(input_directory: str, input_filename: str, overwrite: bool):
             break
         offset += 1
     # Création du répertoire input_directory s'il n'existe pas
-    Path(input_directory).mkdir(parents=True, exist_ok=True)
+    Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
     # Sauvegarde des évènements dans un fichier JSON
-    with open(input_path, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
-    logging.info(f"{len(records)} évènements récupérés")
+    with open(input_path, "w", encoding="utf-8") as f_input:
+        json.dump(records, f_input, ensure_ascii=False, indent=2)
+    logging.info("%d évènements récupérés", len(records))
 
-def run_indexing(input_directory: str, input_filename: str):
+def run_indexing():
     """ Exécute le processus complet d'indexation.
     """
     logging.info("--- Démarrage du processus d'indexation ---")
 
-    input_path = os.path.join(input_directory, input_filename)
-    with open(input_path, encoding="utf-8") as f:
-        events = json.load(f)
+    input_path = os.path.join(INPUT_DIR, INPUT_FILENAME)
+    with open(input_path, encoding="utf-8") as f_input:
+        events = json.load(f_input)
     # --- Étape 3: Création/Mise à jour de l'index Vectoriel ---
     logging.info("Initialisation du gestionnaire de Vector Store...")
     vector_store = VectorStoreManager() # Le constructeur ne fait que charger s'il existe
@@ -60,9 +71,9 @@ def run_indexing(input_directory: str, input_filename: str):
     vector_store.build_index(events)
 
     logging.info("--- Processus d'indexation terminé avec succès ---")
-    logging.info(f"Nombre d'évènements traités: {len(events)}")
+    logging.info("Nombre d'évènements traités: %d", len(events))
     if vector_store.index:
-        logging.info(f"Nombre de chunks indexés: {vector_store.index.ntotal}")
+        logging.info("Nombre de chunks indexés: %d", vector_store.index.ntotal)
     else:
         logging.warning("L'index final n'a pas pu être créé ou est vide.")
 
@@ -70,26 +81,14 @@ def run_indexing(input_directory: str, input_filename: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Script d'indexation pour l'application RAG")
     parser.add_argument(
-        "--input-dir",
-        type=str,
-        default=INPUT_DIR,
-        help=f"Répertoire contenant le fichier source (par défaut: {INPUT_DIR})"
-    )
-    parser.add_argument(
-        "--input-filename",
-        type=str,
-        default=INPUT_FILENAME,
-        help=f"Nom du fichier source (par défaut: {INPUT_DIR})"
-    )
-    parser.add_argument(
         "--overwrite-input",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help=f"Écrasement du fichier input?"
+        help="Écrasement du fichier input?"
     )
     args = parser.parse_args()
 
     # Récupération des évènements
-    get_events(input_directory=args.input_dir, input_filename=args.input_filename, overwrite=args.overwrite_input)
+    get_events(overwrite=args.overwrite_input)
     # Indexation des évènements
-    run_indexing(input_directory=args.input_dir, input_filename=args.input_filename)
+    run_indexing()
