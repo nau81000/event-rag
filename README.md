@@ -52,14 +52,15 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 ## Structure du projet
 
 ```
-.
-├── chatbot.py              # Application Streamlit principale
-├── indexer.py              # Script pour récupérer et indexer les documents
-├── inputs/                 # Dossier pour les documents sources
-├── vector_db/              # Dossier pour l'index FAISS et les chunks
-├── utils/                  # Modules utilitaires
-│   ├── config.py           # Configuration de l'application
-│   └── vector_store.py     # Gestion de l'index vectoriel
+├── .github/workflows/test.yml  # Workflow pour lancement automatique des tests unitaires sur github
+├── chatbot.py                  # Application Streamlit principale
+├── indexer.py                  # Script pour récupérer et indexer les documents
+├── inputs/                     # Dossier pour les documents sources
+├── tests/test_events.py        # Tests unitaires
+├── utils/                      # Modules utilitaires
+│   ├── config.py               # Configuration de l'application
+│   └── vector_store.py         # Gestion de l'index vectoriel
+├── vector_db/                  # Dossier pour l'index FAISS et les chunks
 ```
 
 ## Utilisation
@@ -117,3 +118,9 @@ Vous pouvez personnaliser l'application en modifiant les paramètres dans `utils
 - Taille des chunks et chevauchement
 - Nombre de documents par défaut
 - Nom de la commune ou organisation
+
+## Lancement des tests unitaires
+
+```bash
+pytest tests
+```
