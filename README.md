@@ -56,6 +56,8 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 ├── chatbot.py                  # Application Streamlit principale
 ├── indexer.py                  # Script pour récupérer et indexer les documents
 ├── inputs/                     # Dossier pour les documents sources
+├── pytest.ini                  # Fichier d'initialisation de pytest
+├── README.md                   # README du projet 
 ├── tests/test_events.py        # Tests unitaires
 ├── utils/                      # Modules utilitaires
 │   ├── config.py               # Configuration de l'application
