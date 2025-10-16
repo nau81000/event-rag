@@ -15,7 +15,7 @@ if not MISTRAL_API_KEY:
 
 # --- Modèles Mistral ---
 EMBEDDING_MODEL = "mistral-embed"
-MODEL_NAME = "mistral-small-latest" # Ou un autre modèle comme mistral-large-latest
+MODEL_NAME = "mistral-large-latest" # Ou un autre modèle comme mistral-large-latest
 
 # --- Configuration de l'Indexation ---
 INPUT_DIR = "inputs"                # Dossier pour les données sources après extraction

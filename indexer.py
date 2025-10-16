@@ -3,11 +3,14 @@
 import argparse
 import logging
 import json
+import ijson
+import io
 import os
 from pathlib import Path
 import requests
 from utils.config import INPUT_DIR, INPUT_FILENAME
 from utils.vector_store import VectorStoreManager
+from datetime import datetime, timedelta, timezone
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -19,40 +22,33 @@ def get_events(overwrite: bool):
     if os.path.exists(input_path) and not overwrite:
         # On n'écrase pas le fichier source
         return
-    records = []
-    limit = 100
-    offset = 0
-    uids = []
     base_url = (
         "https://public.opendatasoft.com/api/explore/v2.1/catalog"
-        "/datasets/evenements-publics-openagenda/records"
+        "/datasets/evenements-publics-openagenda/exports/json"
     )
-    while True:
-        params = {
-            "select": "*",
-            "where": 'firstdate_begin >= "2024-07-01"',
-            "limit": limit,
-            "offset": offset,
-            "order_by": "location_city, firstdate_begin",
-            "refine": 'location_region:"Occitanie"',
-        }
-        resp = requests.get(base_url, params=params, timeout=30).json()
-        results = resp.get('results', [])
-        for event in results:
-            uid = event.get("uid")
-            if uid not in uids:
-                records.append(event)
-                # On garde trace des uid déjà vus pour ne les avoir qu'une fois
-                uids.append(uid)
-        if len(results) < limit:
-            break
-        offset += 1
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=365)).strftime("%Y-%m-%d")
+    params = {
+        "select": "*",
+        "where": f'firstdate_begin >= "{cutoff}"',
+        "order_by": "location_region, location_city, firstdate_begin",
+    }
+
     # Création du répertoire input_directory s'il n'existe pas
     Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
-    # Sauvegarde des évènements dans un fichier JSON
-    with open(input_path, "w", encoding="utf-8") as f_input:
-        json.dump(records, f_input, ensure_ascii=False, indent=2)
-    logging.info("%d évènements récupérés", len(records))
+    # Requête en streaming pour éviter d'utiliser trop de mémoire
+    with requests.get(base_url, params=params, stream=True) as resp:
+        resp.raise_for_status()
+        resp.raw.decode_content = True  # décompression gzip
+        with open(input_path, "wb") as f_input:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f_input.write(chunk)
+    # Comptage des évènements sans tout charger en mémoire
+    count = 0
+    with open(input_path, "rb") as f:
+        text_stream = io.TextIOWrapper(f, encoding="utf-8")
+        for _ in ijson.items(text_stream, "item"):
+            count += 1 
+    logging.info("%d évènements récupérés", count)
 
 def run_indexing():
     """ Exécute le processus complet d'indexation.

@@ -13,7 +13,10 @@ from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document # Utilisé pour le format attendu par le splitter
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+import warnings
+
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 from .config import (
     MISTRAL_API_KEY, EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE,
@@ -182,7 +185,7 @@ class VectorStoreManager:
             texts_to_embed = [chunk["text"] for chunk in batch_chunks]
 
             logging.info(
-                "  Traitement du lot %d/%d ({len(texts_to_embed)} chunks)",
+                f"  Traitement du lot %d/%d ({len(texts_to_embed)} chunks)",
                 batch_num, total_batches
             )
             try:
@@ -198,8 +201,7 @@ class VectorStoreManager:
                     batch_num, str(exc)
                 )
                 logging.error(
-                    "  Détails: Status Code=%d, Message=%s",
-                    exc.status_code, exc.message
+                    "  Détails: Message=%s", exc.message
                 )
             except Exception as exc:
                 logging.error(
@@ -249,10 +251,7 @@ class VectorStoreManager:
             return None
 
         embeddings_array = np.array(all_embeddings).astype('float32')
-        logging.info(
-            "Embeddings générés avec succès. Shape: %d",
-            embeddings_array.shape
-        )
+        logging.info("Embeddings générés avec succès.")
         return embeddings_array
 
     def build_index(self, events: List[Dict[str, any]]):
