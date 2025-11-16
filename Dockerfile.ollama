@@ -1,0 +1,7 @@
+FROM ollama/ollama:latest
+
+#RUN ollama pull llama3.2:3b && ollama pull mxbai-embed-large
+
+EXPOSE 11434
+
+CMD ["serve"]

@@ -1,211 +1,331 @@
-""" Assistant RAG permettant à l'utilisateur d'interroger le système sur des évènements culturels
+"""Assistant RAG permettant à l'utilisateur d'interroger le système
+sur des évènements culturels (Ollama + Qdrant + Streamlit).
 """
+
+from __future__ import annotations
+
+import json
 import logging
+import locale
+import base64
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import requests
 import streamlit as st
-from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage
-from utils.config import MISTRAL_API_KEY, MODEL_NAME, SEARCH_K, APP_TITLE, REG_NAME
+from streamlit_js_eval import get_geolocation
+
+from utils.config import SEARCH_K, APP_TITLE
 from utils.vector_store import VectorStoreManager
+from streamlit_extras.bottom_container import bottom
 
-# --- Configuration du Logging ---
-# Note: Streamlit peut avoir sa propre gestion de logs. Configurer ici est une bonne pratique.
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
-
-# --- Configuration de l'API Mistral ---
-api_key = MISTRAL_API_KEY
-model = MODEL_NAME
-
-if not api_key:
-    st.error(
-        (
-        "Erreur : Clé API Mistral non trouvée (MISTRAL_API_KEY)."
-        "Veuillez la définir dans le fichier .env."
-        )
-    )
-    st.stop()
+# -------------------------------------------------------------------
+# Configuration locale & logging
+# -------------------------------------------------------------------
 
 try:
-    client = MistralClient(api_key=api_key)
-    logging.info("Client Mistral initialisé.")
-except Exception as e:
-    st.error(f"Erreur lors de l'initialisation du client Mistral : {e}")
-    logging.exception("Erreur initialisation client Mistral")
-    st.stop()
-
-
-@st.cache_resource # Garde le manager chargé en mémoire pour la session
-def get_vector_store_manager():
-    """ Chargement du Vector Store (mis en cache)
-    """
-    logging.info("Tentative de chargement du VectorStoreManager...")
+    locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+except locale.Error:
+    # fallback (Windows, etc.)
     try:
-        manager = VectorStoreManager()
-        # Vérifie si l'index a bien été chargé par le constructeur
-        if manager.index is None or not manager.event_chunks:
-            st.error("L'index vectoriel ou les chunks n'ont pas pu être chargés.")
-            logging.error("Index Faiss ou chunks non trouvés/chargés par VectorStoreManager.")
-            return None # Retourne None si échec
-        logging.info("VectorStoreManager chargé avec succès (%d vecteurs).", manager.index.ntotal)
-        return manager
-    except FileNotFoundError:
-        st.error("Fichiers d'index ou de chunks non trouvés.")
-        st.warning("Veuillez exécuter 'python indexer.py' pour créer la base de connaissances.")
-        logging.error("FileNotFoundError lors de l'init de VectorStoreManager.")
+        locale.setlocale(locale.LC_TIME, "fr_FR")
+    except locale.Error:
+        pass
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+# -------------------------------------------------------------------
+# Image helpers
+# -------------------------------------------------------------------
+def load_image_base64(path: str) -> str:
+    with open(path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+# -------------------------------------------------------------------
+# Geolocation helpers
+# -------------------------------------------------------------------
+def get_user_city() -> Optional[str]:
+    """Retourne la ville de l'utilisateur via géoloc navigateur + Nominatim.
+
+    Retourne None si la permission est refusée ou en cas d'erreur.
+    """
+    loc = get_geolocation()
+    if not loc:
+        logging.info("Géolocalisation non accordée ou indisponible.")
         return None
-    except Exception as exc:
-        st.error(f"Erreur inattendue lors du chargement du VectorStoreManager: {exc}")
-        logging.exception("Erreur chargement VectorStoreManager")
-        return None
 
-vector_store_manager = get_vector_store_manager()
+    lat = loc["coords"]["latitude"]
+    lon = loc["coords"]["longitude"]
 
-# --- Prompt Système pour RAG ---
-# Adaptez ce prompt selon vos besoins
-SYSTEM_PROMPT = f"""Assistant virtuel pour les évènements en {REG_NAME}.
-Ta mission est de répondre aux questions des citoyens de manière précise, factuelle et polie, en te basant **exclusivement** sur les informations fournies dans le CONTEXTE ci-dessous.
-
-Instructions importantes:
-1.  **Base ta réponse UNIQUEMENT sur le CONTEXTE.** N'invente aucune information.
-2.  Si le CONTEXTE contient l'information pour répondre à la QUESTION, synthétise-la clairement.
-3.  Si le CONTEXTE ne contient PAS d'information pertinente pour répondre à la QUESTION, réponds poliment que tu n'as pas trouvé l'information dans la base de connaissances actuelle et suggère de contacter directement les services de la région. Ne cherche pas la réponse ailleurs.
-4.  Ne réponds pas à des questions hors sujet (non liées à la mairie ou aux informations du contexte).
-5.  Si possible, mentionne la source (par exemple, le nom du fichier) si elle est indiquée dans le contexte.
-6.  Garde tes réponses concises et faciles à comprendre.
-
-CONTEXTE FOURNI:
----
-{{context_str}}
----
-
-QUESTION DU CITOYEN:
-{{question}}
-
-RÉPONSE DE L'ASSISTANT MAIRIE:"""
-
-
-# --- Initialisation de l'historique de conversation ---
-if "messages" not in st.session_state:
-    # Message d'accueil initial
-    st.session_state.messages = [{
-        "role": "assistant",
-        "content": f"""
-            Bonjour, je suis l'assistant virtuel de la région d'{REG_NAME}.
-            Comment puis-je vous aider concernant nos services (basé sur ma base de connaissances)?
-        """}]
-
-# --- Fonctions ---
-
-def generer_reponse(prompt_messages: list[ChatMessage]) -> str:
-    """
-    Envoie le prompt (qui inclut maintenant le contexte) à l'API Mistral.
-    """
-    if not prompt_messages:
-        logging.warning("Tentative de génération de réponse avec un prompt vide.")
-        return "Je ne peux pas traiter une demande vide."
+    headers = {
+        "User-Agent": "MyEventApp/1.0 (audheon.nicolas@gmail.com)"
+    }
     try:
-        logging.info(
-            "Appel à l'API Mistral modèle '%s' avec {len(prompt_messages)} message(s).", model
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lon, "format": "json"},
+            headers=headers,
+            timeout=10,
         )
-        # Log le contenu du prompt (peut être long) - commenter si trop verbeux
-        # logging.debug(f"Prompt envoyé à l'API: {prompt_messages}")
-
-        response = client.chat(
-            model=model,
-            messages=prompt_messages,
-            temperature=0.9, # Température basse pour des réponses factuelles basées sur le contexte
-            # top_p=0.9,
-        )
-        if response.choices and len(response.choices) > 0:
-            logging.info("Réponse reçue de l'API Mistral.")
-            return response.choices[0].message.content
-        logging.warning("L'API n'a pas retourné de choix valide.")
-        return "Désolé, je n'ai pas pu générer de réponse valide pour le moment."
-    except Exception as exc:
-        st.error(f"Erreur lors de l'appel à l'API Mistral: {exc}")
-        logging.exception("Erreur API Mistral pendant client.chat")
-        return (
-            "Je suis désolé, une erreur technique m'empêche de répondre."
-            " Veuillez réessayer plus tard."
-        )
-# --- Interface Utilisateur Streamlit ---
-st.title(APP_TITLE)
-st.caption(f"Assistant virtuel pour les évènements dans la région d'{REG_NAME} | Modèle: {model}")
-
-# Affichage des messages de l'historique (pour l'UI)
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
-
-# Zone de saisie utilisateur
-if prompt := st.chat_input(f"Posez votre question sur les évènements en {REG_NAME}..."):
-    # 1. Ajouter et afficher le message de l'utilisateur
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
-
-    # === Début de la logique RAG ===
-
-    # 2. Vérifier si le Vector Store est disponible
-    if vector_store_manager is None:
-        st.error((
-            "Le service de recherche de connaissances n'est pas disponible."
-            " Impossible de traiter votre demande.")
-        )
-        logging.error("VectorStoreManager non disponible pour la recherche.")
-        # On arrête ici car on ne peut pas faire de RAG
-        st.stop()
-
-    # 3. Rechercher le contexte dans le Vector Store
-    try:
-        logging.info("Recherche de contexte pour la question: '%s' avec k=%d", prompt, SEARCH_K)
-        search_results = vector_store_manager.search(prompt, k=SEARCH_K)
-        logging.info("%d chunks trouvés dans le Vector Store.", len(search_results))
+        resp.raise_for_status()
+        data = resp.json()
+        address = data.get("address", {})
+        # city / town / village suivant les cas
+        return address.get("city") or address.get("town") or address.get("village")
     except Exception as e:
-        st.error(f"Une erreur est survenue lors de la recherche d'informations pertinentes: {e}")
-        logging.exception("Erreur pendant vector_store_manager.search pour la query: %s", prompt)
-        search_results = [] # On continue sans contexte si la recherche échoue
+        logging.warning("Erreur lors de la géolocalisation : %s", e)
+        return None
 
-    # 4. Formater le contexte pour le prompt LLM
-    context_str = "\n\n---\n\n".join([
-        f"Source: {res['metadata'].get('source', 'Inconnue')} (Score: {res['score']:.1f}%)\nContenu: {res['text']}"
-        for res in search_results
-    ])
 
-    if not search_results:
-        context_str = (
-            "Aucune information pertinente trouvée dans la base de connaissances"
-            " pour cette question."
-        )
-        logging.warning("Aucun contexte trouvé pour la query: %s", prompt)
+# -------------------------------------------------------------------
+# Timings -> texte humain (groupés)
+# -------------------------------------------------------------------
 
-    # 5. Construire le prompt final pour l'API Mistral en utilisant le System Prompt RAG
-    final_prompt_for_llm = SYSTEM_PROMPT.format(context_str=context_str, question=prompt)
+def group_timings(timings_str: str) -> List[str]:
+    """Transforme un JSON de timings en une liste de plages regroupées lisibles.
 
-    # Créer la liste de messages pour l'API (juste le prompt système/utilisateur combiné)
-    messages_for_api = [
-        # On pourrait séparer system et user, mais Mistral gère bien un long message user structuré
-        ChatMessage(role="user", content=final_prompt_for_llm)
+    timings_str est un JSON de la forme :
+    [
+      {"begin": "2025-10-13T09:00:00+02:00", "end": "2025-10-13T18:00:00+02:00"},
+      ...
     ]
 
-    # === Fin de la logique RAG ===
+    Retourne une liste de chaînes en français, ex :
+    ["Du lundi 13 octobre 2025 au vendredi 17 octobre 2025 — 09h00 à 18h00"]
+    """
+    if not timings_str:
+        return ["Dates non précisées"]
+
+    try:
+        timings = json.loads(timings_str)
+    except Exception:
+        return ["Dates non lisibles"]
+
+    if not timings:
+        return ["Dates non précisées"]
+
+    # Convertir en objets datetime
+    slots = [
+        (
+            datetime.fromisoformat(t["begin"]),
+            datetime.fromisoformat(t["end"]),
+        )
+        for t in timings
+    ]
+
+    slots.sort(key=lambda x: x[0])
+
+    groups = []
+    current_start, current_end = slots[0]
+    current_begin_time = current_start.strftime("%Hh%M")
+    current_end_time = current_end.strftime("%Hh%M")
+
+    for begin, end in slots[1:]:
+        # Si le jour est consécutif ET même plage horaire, on regroupe
+        if (
+            begin.date() == current_end.date() + timedelta(days=1)
+            and begin.strftime("%Hh%M") == current_begin_time
+            and end.strftime("%Hh%M") == current_end_time
+        ):
+            current_end = end
+        else:
+            groups.append((current_start, current_end, current_begin_time, current_end_time))
+            current_start, current_end = begin, end
+            current_begin_time = begin.strftime("%Hh%M")
+            current_end_time = end.strftime("%Hh%M")
+
+    groups.append((current_start, current_end, current_begin_time, current_end_time))
+
+    # Format humain final
+    human_groups = []
+    first = 0
+    last = len(groups) - 1
+    idx = first
+    for start, end, hb, he in groups:
+        start_str = start.strftime("%A %d %B %Y")
+        end_str = end.strftime("%A %d %B %Y")
+        if start_str == end_str:
+            # un seul jour
+            human_groups.append(f"Le {start_str} — {hb} à {he}")
+        else:
+            human_groups.append(f"Du {start_str} au {end_str} — {hb} à {he}")
+        if idx!=last:
+            human_groups.append(', ')
+        idx += 1
+
+    return human_groups
+
+# -------------------------------------------------------------------
+# Formatage d'un événement
+# -------------------------------------------------------------------
+
+def format_event(result: Any) -> str:
+    """Formate un événement (résultat Qdrant) en Markdown lisible."""
+    p: Dict[str, Any] = result.payload or {}
+
+    title = p.get("title_fr")
+    city = p.get("location_city") or "Non précisé"
+    dep = p.get("location_department")
+    country = p.get("location_countrycode")
+    conditions = p.get("conditions_fr")
+    dates = "\n    ".join(group_timings(p.get("timings")))
+
+    return f"""- **{title}**
+                \n     📍 *{city}* ({dep}, {country})
+                \n     📅 **Dates :**
+                    {dates}
+                \n     🎟 {conditions if conditions else "Conditions d'accès non précisées"}
+            """
+
+# -------------------------------------------------------------------
+# Logique RAG (Vector Store)
+# -------------------------------------------------------------------
+
+def build_response(
+    vector_store_manager: VectorStoreManager,
+    prompt: str
+) -> str:
+    """ construit le texte de réponse à partir du Vector Store.
+
+    pour l'instant : pure retrieval + formatage.
+    Si tu veux, tu pourras brancher un LLM ici plus tard.
+    """
+    try:
+        logging.info("Recherche de contexte pour: '%s' (k=%d)", prompt, SEARCH_K)
+        # À adapter si ton VectorStoreManager supporte des filtres (ville, etc.)
+        search_results = vector_store_manager.search(prompt, k=SEARCH_K)
+        logging.info("%d chunks trouvés.", len(search_results))
+    except Exception as e:
+        logging.exception("Erreur pendant vector_store_manager.search")
+        return f"Une erreur est survenue pendant la recherche : {e}"
+
+    if not search_results:
+        return "Aucune information trouvée dans ma base de connaissances."
+
+    items = [format_event(res) for res in search_results]
+    return "\n".join(items)
 
 
-    # 6. Afficher indicateur + Générer la réponse de l'assistant via LLM
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.text("...") # Indicateur simple
+# -------------------------------------------------------------------
+# Initialisation de la session Streamlit
+# -------------------------------------------------------------------
 
-        # Génération de la réponse de l'assistant en utilisant le prompt augmenté
-        response_content = generer_reponse(messages_for_api)
+def init_session_state():
+    """ Initialize state variables
+    """
 
-        # Affichage de la réponse complète
-        message_placeholder.write(response_content)
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": f"""
+                    Bonjour, je suis l'assistant virtuel.
+                    Comment puis-je vous aider?
+                """
+            }
+        ]
+    if "vector_store" not in st.session_state:
+        st.session_state.vector_store = VectorStoreManager(True)
+    if "user_city" not in st.session_state:
+        st.session_state.user_city = None
 
-    # 7. Ajouter la réponse de l'assistant à l'historique (pour affichage UI)
-    st.session_state.messages.append({"role": "assistant", "content": response_content})
+# -------------------------------------------------------------------
+# UI principale Streamlit
+# -------------------------------------------------------------------
 
-# Petit pied de page optionnel
-st.markdown("---")
-st.caption("Propulsé par Mistral AI & Faiss | Région d' " + REG_NAME)
+def main():
+
+    # Initialisation des états
+    init_session_state()
+    # Géolocalisation
+    st.session_state.user_city = get_user_city()
+
+    with st.sidebar:
+        sidebar_css = f"""
+        <style>
+            section[data-testid="stSidebar"] {{
+                background-image: url("data:image/png;base64,{load_image_base64("images/events.png")}");
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                color: black !important;
+            }}
+
+            section[data-testid="stSidebar"] > div:first-child {{
+                background-color: rgba(180, 180, 180, 0.75);
+                margin: 0px;
+                border-radius: 0px;
+                padding: 0px;
+                text-align: center !important;
+            }}
+
+            h1 {{
+                font-size: 3rem !important;
+                font-weight: 700 !important;
+            }}
+
+        </style>
+        """
+        st.markdown(sidebar_css, unsafe_allow_html=True)
+        st.title(APP_TITLE)
+        st.write('Les réponses sont basées sur une base de connaissances')
+
+    # Affichage de l'historique
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Saisie utilisateur
+    # ligne bouton + label explicatif   
+    with bottom():
+        if st.session_state.user_city:
+            col1, col2 = st.columns([1, 6])
+            with col1:
+                home = st.button("❇️")
+            with col2:
+                user_prompt = st.chat_input("Posez votre question ou cliquer sur le bouton vert pour rechercher des évènements autour de vous…")
+        else:
+            home = None
+            user_prompt = st.chat_input("Posez votre question…")
+        st.markdown("---")
+        st.caption("Powered by Ollama & Qdrant")
+
+    query = home or user_prompt
+    if query:
+        if isinstance(query, bool):
+            if st.session_state.user_city:
+                query = f"Des évènements à {st.session_state.user_city}?"
+            else:
+                query = None
+        # message utilisateur
+        st.session_state.messages.append({"role": "user", "content": query})
+        with st.chat_message("user"):
+            st.markdown(query)
+
+        # message assistant (placeholder)
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("_Recherche en cours…_")
+            # Logique RAG
+            response_content = build_response(
+                vector_store_manager=st.session_state.vector_store,
+                prompt=query
+            )
+            # Affichage final
+            message_placeholder.markdown(response_content)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": response_content}
+            )
+
+    # UI: toolbar minimal + footer
+    st.set_option("client.toolbarMode", "minimal")
+
+# -------------------------------------------------------------------
+# Entrée du script
+# -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    main()

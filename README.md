@@ -1,17 +1,16 @@
 # Assistant RAG avec Mistral
 
-Ce projet implémente un assistant virtuel basé sur le modèle Mistral, utilisant la technique de Retrieval-Augmented Generation (RAG) pour fournir des réponses précises et contextuelles à partir d'une base de connaissances personnalisée.
+Ce projet implémente un assistant virtuel basé sur le modèle Ollama, utilisant la technique de Retrieval-Augmented Generation (RAG) pour fournir des réponses précises et contextuelles à partir d'une base de connaissances personnalisée.
 
 ## Fonctionnalités
 
-- 🔍 **Recherche sémantique** avec FAISS pour trouver les documents pertinents
+- 🔍 **Recherche sémantique** avec Ollama pour trouver les documents pertinents
 - 🧠 **Classification des requêtes** pour déterminer si une recherche RAG est nécessaire
 - ⚙️ **Paramètres personnalisables** (modèle, nombre de documents, score minimum)
 
 ## Prérequis
 
-- Python 3.9+ 
-- Clé API Mistral (obtenue sur [console.mistral.ai](https://console.mistral.ai/))
+- Python 3.12+ 
 
 ## Installation
 
@@ -41,12 +40,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. **Configurer la clé API**
+4. **Prérequis**
 
-Créez un fichier `.env` à la racine du projet avec le contenu suivant :
+Avoir installé Ollama sur la machine hôte. L'utilisation d'Ollama dans un container Docker est déconseillé car la création des embeddings sera très longue, Docker ne gérant pas l'accélération GPU.
 
-```
-MISTRAL_API_KEY=votre_clé_api_mistral
+Télécharger le modèle d'embeddings:
+
+```bash
+ollama pull mxbai-embed-large
 ```
 
 ## Structure du projet
@@ -54,7 +55,7 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 ```
 ├── .github/workflows/test.yml  # Workflow pour lancement automatique des tests unitaires sur github
 ├── chatbot.py                  # Application Streamlit principale
-├── indexer.py                  # Script pour récupérer et indexer les documents
+├── build_db.py                 # Script pour récupérer et construire la base vectorielle
 ├── inputs/                     # Dossier pour les documents sources
 ├── pytest.ini                  # Fichier d'initialisation de pytest
 ├── README.md                   # README du projet 
@@ -62,7 +63,6 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 ├── utils/                      # Modules utilitaires
 │   ├── config.py               # Configuration de l'application
 │   └── vector_store.py         # Gestion de l'index vectoriel
-├── vector_db/                  # Dossier pour l'index FAISS et les chunks
 ```
 
 ## Utilisation
@@ -72,23 +72,16 @@ MISTRAL_API_KEY=votre_clé_api_mistral
 Exécutez le script d'indexation pour récupérer, traiter les évènements et créer l'index FAISS :
 
 ```bash
-python indexer.py
+python build_db.py
 ```
-options:
-
-**--overwrite-input** *pour écraser le fichier de données si présent*
-
-**--no-overwrite-input** *pour ne pas écraser le fichier de données si présent (défaut)*
-
 
 Ce script va :
 1. Charger les évènements depuis le site Openagenda
 2. Découper les évènements en chunks
-3. Générer des embeddings avec Mistral
-4. Créer un index FAISS pour la recherche sémantique
-5. Sauvegarder l'index et les chunks dans le dossier `vector_db/`
+3. Générer des embeddings avec Ollama
+4. Créer une base vectorielle avec Qdrant (dans un container Docker)
 
-### 3. Lancer l'application
+### 2. Lancer l'application
 
 ```bash
 streamlit run chatbot.py
@@ -100,26 +93,23 @@ L'application sera accessible à l'adresse http://localhost:8501 dans votre navi
 
 ### Classification des requêtes
 
-L'application détermine automatiquement si une question nécessite une recherche RAG ou si une réponse directe du modèle Mistral est suffisante. Cela permet d'optimiser les performances et la pertinence des réponses.
+Les requêtes sont analysés et optimiser par l'utilisation de filtres sur les lieux et dates. 
 
 ## Modules principaux
 
 ### `utils/vector_store.py`
 
-Gère l'index vectoriel FAISS et la recherche sémantique :
+Gère la base vectorielle et la recherche sémantique :
 - Chargement et découpage des documents
-- Génération des embeddings avec Mistral
-- Création et interrogation de l'index FAISS
+- Génération des embeddings avec Ollama
+- Création et interrogation de la base Qdrant
 
 ## Personnalisation
 
 Vous pouvez personnaliser l'application en modifiant les paramètres dans `utils/config.py` :
 - Chemin et nom du ficher de données
-- Chemin et noms des fichiers de l'index Faiss et les chunks
-- Modèles Mistral utilisés
 - Taille des chunks et chevauchement
 - Nombre de documents par défaut
-- Nom de la commune ou organisation
 
 ## Lancement des tests unitaires
 
