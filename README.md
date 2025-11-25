@@ -1,4 +1,4 @@
-# Assistant RAG avec Mistral
+# Assistant RAG
 
 Ce projet implémente un assistant virtuel basé sur le modèle Ollama, utilisant la technique de Retrieval-Augmented Generation (RAG) pour fournir des réponses précises et contextuelles à partir d'une base de connaissances personnalisée.
 
@@ -10,7 +10,9 @@ Ce projet implémente un assistant virtuel basé sur le modèle Ollama, utilisan
 
 ## Prérequis
 
-- Python 3.12+ 
+- Python 3.12+
+- Docker
+- Npm
 
 ## Installation
 
@@ -38,6 +40,12 @@ source venv/bin/activate
 
 ```bash
 pip install -r requirements.txt
+```
+
+```bash
+cd frontend
+npm install
+npm run build
 ```
 
 4. **Prérequis**
@@ -69,7 +77,13 @@ ollama pull mxbai-embed-large
 
 ### 1. Récupérer les évènements et indexer les documents
 
-Exécutez le script d'indexation pour récupérer, traiter les évènements et créer l'index FAISS :
+Créer la base vectorielle Qdrant
+
+```bash
+docker-compose up -d
+```
+
+Exécuter le script d'indexation pour récupérer, traiter les évènements et alimenter la base vectorielle :
 
 ```bash
 python build_db.py
@@ -81,13 +95,14 @@ Ce script va :
 3. Générer des embeddings avec Ollama
 4. Créer une base vectorielle avec Qdrant (dans un container Docker)
 
+
 ### 2. Lancer l'application
 
 ```bash
-streamlit run chatbot.py
+python server.py
 ```
 
-L'application sera accessible à l'adresse http://localhost:8501 dans votre navigateur.
+L'application sera accessible à l'adresse http://localhost:8000 dans votre navigateur.
 
 ## Fonctionnalités principales
 
