@@ -135,4 +135,7 @@ pytest tests
 ```
 
 ## Démonstration
-![](demo.mov)
+<video controls>
+  <source src="demo.mov" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
