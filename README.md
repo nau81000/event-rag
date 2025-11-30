@@ -62,14 +62,16 @@ ollama pull mxbai-embed-large
 
 ```
 ├── .github/workflows/test.yml  # Workflow pour lancement automatique des tests unitaires sur github
-├── chatbot.py                  # Application Streamlit principale
 ├── build_db.py                 # Script pour récupérer et construire la base vectorielle
+├── frontend/                   # Dossier comprenant les fichiers de l'interface utilisateur basée sur React
 ├── inputs/                     # Dossier pour les documents sources
 ├── pytest.ini                  # Fichier d'initialisation de pytest
 ├── README.md                   # README du projet 
+├── server.py                   # Script de lancement du serveur web
 ├── tests/test_events.py        # Tests unitaires
 ├── utils/                      # Modules utilitaires
 │   ├── config.py               # Configuration de l'application
+│   └── rag.py                  # API REST
 │   └── vector_store.py         # Gestion de l'index vectoriel
 ```
 
@@ -131,3 +133,6 @@ Vous pouvez personnaliser l'application en modifiant les paramètres dans `utils
 ```bash
 pytest tests
 ```
+
+## Démonstration
+![](demo.mov)

@@ -11,27 +11,28 @@ from datetime import date
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def first_of_month():
-    """ Récupére le 1er du mois courant
+def event_date_range():
+    """ Récupére le 1er du mois courant et le 31 Décembre
+        de l'année prochaine
     """
     today = date.today()
+    next_year = today.year + 1
 
-    # Début du mois courant
-    first_of_this_month = today.replace(day=1)
-
-    return str(first_of_this_month)
+    return (today.replace(day=1).isoformat(), date(next_year, 12, 31).isoformat())
 
 def get_events():
-    """ Récupère les évènements depuis juillet 2024 en Occitanie
+    """ Récupère les évènements depuis le début du mois jusqu'à
+        la fin de l'année suivnate
     """
     logging.info("--- Récupération des évènements ---")
+    first_of_month, last_day_next_year = event_date_range()
     base_url = (
         "https://public.opendatasoft.com/api/explore/v2.1/catalog"
         "/datasets/evenements-publics-openagenda/exports/json"
     )
     params = {
         "select": "*",
-        "where": f"firstdate_begin >= '{first_of_month()}'",
+        "where": f"firstdate_begin >= '{first_of_month}' AND lastdate_end <= '{last_day_next_year}'",
         "order_by": "firstdate_begin",
     }
     events = requests.get(base_url, params=params, timeout=30).json()
