@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -46,4 +46,23 @@ async def read_root(full_path: str):
 async def search(request: dict) -> dict:
     return { "answer": vector_store_manager.search(request['message'], k=SEARCH_K)}
 
-
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            # Wait for text from the client
+            data = await websocket.receive_text()
+            # Give the answer back
+            searchResults = vector_store_manager.search(data, k=SEARCH_K)
+            events = [
+                {
+                    "id": p.id,
+                    "score": p.score,
+                    "payload": p.payload,
+                }
+                for p in searchResults
+            ]
+            await websocket.send_json({ "answer": events})
+    except WebSocketDisconnect:
+        pass

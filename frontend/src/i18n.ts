@@ -10,7 +10,7 @@ const resources = {
       welcomeMessage: "Hi! What are you looking for? 😊",
       inputPlaceholder: "Looking for event...",
       searchResult: "No event found",
-      connexionError: "Sorry — I couldn't join the server"
+      connexionError: "Sorry — Service is unavailable"
     },
   },
   fr: {
@@ -20,7 +20,7 @@ const resources = {
       welcomeMessage: "Bonjour! Que recherchez-vous? 😊",
       inputPlaceholder: "Rechercher des évènements...",
       searchResult: "Aucun évènement trouvé",
-      connexionError: "Désolé — Je n'ai pas pu joindre le serveur"
+      connexionError: "Désolé — Service indisponible"
     },
   },
 };

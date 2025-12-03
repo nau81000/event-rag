@@ -4,17 +4,14 @@ import { Flex, Text, Box, Input, HStack, IconButton } from "@chakra-ui/react";
 import { useUserHistory } from "../hooks/useUserHistory";
 import { useCityFromGeolocation } from "../utils/useCityFromGeolocation";
 import { useTranslation } from "react-i18next";
-import { ChatbotHeader } from "./ChatbotHeader.tsx";
+import { ChatbotHeader } from "./ChatbotHeader";
+import { connectWebSocket, closeWebSocket, sendWsMessage, disableAutoReconnect} from "../utils/wsClient";
 
 type Role = "user" | "assistant";
 
 type Message = {
   role: Role;
   content: string;
-};
-
-type ChatbotProps = {
-  endpoint: string;
 };
 
 type EventPayload = {
@@ -160,7 +157,6 @@ function groupTimings(timingsStr: string | null | undefined): string[] {
   return humanGroups;
 }
 
-
 function formatEvent(payload: EventPayload): string {
   const p = payload || {};
 
@@ -268,10 +264,7 @@ const ChatInputWithHistory: React.FC<{
   );
 };
 
-const Chatbot: React.FC<ChatbotProps> = (
-{
-  endpoint,
-}) => {
+const Chatbot: React.FC = () => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: t("welcomeMessage") },
@@ -308,26 +301,7 @@ const Chatbot: React.FC<ChatbotProps> = (
   const sendMessage = async (text: string) => {
   
     try {
-      // Send to backend
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-
-      const data = (await res.json()) as ChatResponse;
-
-      // Add assistant response
-      const items = data.answer.map(res => formatEvent(res.payload));
-      const assistantMsg: Message = {
-        role: "assistant",
-        content: items.length > 0 ? items.join("\n\n") : t("searchResult"),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      sendWsMessage(text)
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -360,6 +334,35 @@ const Chatbot: React.FC<ChatbotProps> = (
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const url =
+      window.location.protocol === "https:"
+        ? `wss://${window.location.host}/ws`
+        : "ws://localhost:8000/ws";
+
+    connectWebSocket(
+      url,
+      {
+        onMessage: (msg) => {
+          const data = JSON.parse(msg) as ChatResponse;
+          // Add assistant response
+          const items = data.answer.map(res => formatEvent(res.payload));
+          const assistantMsg: Message = {
+            role: "assistant",
+            content: items.length > 0 ? items.join("\n\n") : t("searchResult"),
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+        },
+      },
+      true // autoReconnect
+    );
+
+    return () => {
+      // stop reconnect attempts and close socket
+      disableAutoReconnect();
+      closeWebSocket();
+    };
+  }, []);
 
   return (
     <Flex

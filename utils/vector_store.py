@@ -98,7 +98,7 @@ class VectorStoreManager:
         """ Load events to be more accurate while searching
         """
         logging.info("Loading events")
-        self.df_events = polars.read_json(INPUT_FILENAME)
+        self.df_events = polars.read_json(INPUT_FILENAME, infer_schema_length=5000)
 
     def _split_events_to_chunks(self, events: List[Dict[str, any]]) -> List[Dict[str, any]]:
         """Découpe les events en chunks avec métadonnées."""

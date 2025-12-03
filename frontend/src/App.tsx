@@ -9,9 +9,7 @@ function App() {
     <ChakraProvider>
       <Flex direction="row" align="stretch" h="100vh" w="100vw">
         <Sidebar/>
-        <Chatbot
-          endpoint="http://localhost:8000/search"
-        />
+        <Chatbot/>
       </Flex>
     </ChakraProvider>
   )
