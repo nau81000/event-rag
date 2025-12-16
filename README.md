@@ -13,6 +13,7 @@ Ce projet implémente un assistant virtuel basé sur le modèle Ollama, utilisan
 - Python 3.12+
 - Docker
 - Npm
+- Node.js
 
 ## Installation
 
@@ -45,7 +46,7 @@ pip install -r requirements.txt
 ```bash
 cd frontend
 npm install
-npm run build
+ng build --configuration production
 ```
 
 4. **Prérequis**
@@ -63,7 +64,7 @@ ollama pull mxbai-embed-large
 ```
 ├── .github/workflows/test.yml  # Workflow pour lancement automatique des tests unitaires sur github
 ├── build_db.py                 # Script pour récupérer et construire la base vectorielle
-├── frontend/                   # Dossier comprenant les fichiers de l'interface utilisateur basée sur React
+├── frontend/                   # Dossier comprenant les fichiers de l'interface utilisateur basée sur Angular
 ├── inputs/                     # Dossier pour les documents sources
 ├── pytest.ini                  # Fichier d'initialisation de pytest
 ├── README.md                   # README du projet 

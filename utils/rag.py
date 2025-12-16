@@ -7,44 +7,10 @@ from utils.vector_store import VectorStoreManager
 from pathlib import Path
 
 
-FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist" / "my-angular-app" / "browser"
 
 vector_store_manager = VectorStoreManager(True)
 app = FastAPI()
-
-# Serve assets (JS/CSS/images)
-app.mount(
-    "/assets",
-    StaticFiles(directory=FRONTEND_DIST / "assets"),
-    name="assets",
-)
-
-app.mount(
-    "/rag.ico",
-    StaticFiles(directory=FRONTEND_DIST),
-    name="ico",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-
-@app.get("/{full_path:path}", tags=["root"])
-async def read_root(full_path: str):
-    index_file = FRONTEND_DIST / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    return {"error": "Frontend build not found. Run npm run build."}
-
-
-@app.post("/search", tags=["search"])
-async def search(request: dict) -> dict:
-    return { "answer": vector_store_manager.search(request['message'], k=SEARCH_K)}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -66,3 +32,20 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_json({ "answer": events})
     except WebSocketDisconnect:
         pass
+
+# Serve everything in the dist folder as static files
+# html=True lets it serve index.html at "/"
+app.mount(
+    "/",
+    StaticFiles(directory=FRONTEND_DIST, html=True),
+    name="frontend",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+

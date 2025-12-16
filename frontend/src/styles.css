@@ -1,0 +1,221 @@
+/* You can add global styles to this file, and also import other style files */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background-color: #4B5563;
+    color: white;
+}
+
+.layout {
+    display: flex;
+    height: 100%;
+}
+
+/* HEADER */
+.header {
+    position: relative;
+    display: flex;
+    justify-content: center;   /* center the title horizontally */
+    align-items: center;
+    height: 60px;               /* or your desired height */
+    font-size: 2.5rem;
+    border-bottom: 2px solid white;
+}
+
+.header-title {
+  margin: 0;
+  text-align: right;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;   /* center image + text horizontally */
+    margin: 0;
+    padding: 0;
+    /* No vertical gaps */
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar img {
+    flex: 1;              /* fills vertical space */
+    width: 100%;
+    height: auto;
+    display: block;       /* removes whitespace under img */
+}
+
+.sidebar-footer {
+    padding-top: 20px;
+    height: 30px;            /* your choice */
+    display: flex;            /* required for vertical centering */
+    align-items: center;      /* vertical center */
+    justify-content: center;  /* horizontal center */
+    font-size: 1.2rem;
+}
+
+/* MAIN CONTENT */
+.content {
+    flex: 1;
+    padding: 2rem;
+}
+
+.globe-icon {
+    position: absolute;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    color: white;
+    cursor: pointer; /* 👈 clickable */
+    transition: transform 0.15s ease;
+}
+
+.globe-icon:hover {
+  transform: scale(1.15);
+}
+/* CHAT */
+
+.chat-container {
+  position: relative;    /* needed for absolute input bar */
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SCROLLABLE MESSAGES */
+.chat-messages {
+  flex: 1;               /* fill available space */
+  overflow-y: auto;
+  padding-bottom: 80px;  /* prevent last msg from being hidden */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-message {
+  max-width: 80%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.95rem;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.chat-message.assistant {
+  align-self: flex-start;
+  text-align: left;
+}
+
+.chat-badge {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.chat-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  white-space: pre-wrap;
+}
+
+.chat-message.user .chat-bubble {
+  background: rgba(59, 130, 246, 0.8);
+}
+
+/* INPUT ROW STAYS AT BOTTOM OF chat-container */
+.chat-input-row {
+  flex-shrink: 0;         /* 👈 do not shrink */
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.chat-input {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  outline: none;
+  flex-direction: line;
+}
+
+.chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.chat-input:focus {
+  border-color: white;
+}
+
+.spark-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 70px;
+  padding: 0 20px;
+  border-bottom: 2px solid white;
+}
+
+/* Wrapper is now where your old globe was */
+.lang-menu-wrapper {
+  position: absolute;
+  right: 20px;
+  top: 25%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: cebnterflex-end;
+}
+
+.lang-menu {
+  margin-top: 8px;
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  min-width: 150px;
+  z-index: 10;
+}
+
+.lang-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: white;
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lang-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lang-item.active {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.12);
+}
+

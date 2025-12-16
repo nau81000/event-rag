@@ -1,0 +1,12 @@
+{
+  "sidebar": {
+    "footer": "Propulsé par Ollama · Qdrant · Angular · FastAPI"
+  },
+  "main": {
+    "title": "Assistant pour la recommandation d'évènements",
+    "input_placeholder": "Rechercher des évènements...",
+    "empty_search_result": "Aucun évènement trouvé",
+    "connexion_error": "Désolé — Service indisponible",
+    "welcome_message": "Bonjour! Que recherchez-vous? 😊"
+  }
+}
